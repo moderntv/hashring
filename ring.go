@@ -26,7 +26,7 @@ type Ring struct {
 	virtualNodesPerNode uint
 }
 
-func NewRing(opts ...Option) (*Ring, error) {
+func New(opts ...Option) (*Ring, error) {
 	options := defaultOptions()
 	for _, modifier := range opts {
 		if err := modifier(&options); err != nil {
