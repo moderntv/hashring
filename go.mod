@@ -1,3 +1,3 @@
-module git.moderntv.eu/go/hashring
+module github.com/moderntv/hashring
 
 go 1.14
