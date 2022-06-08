@@ -1,20 +1,11 @@
 package hashring
 
 import (
-	"errors"
 	"fmt"
 	"hash"
 	"sort"
 	"sync"
 )
-
-var ErrNoNodes = errors.New("no nodes available")
-
-type nodesSet []uint64
-
-func (this nodesSet) Len() int           { return len(this) }
-func (this nodesSet) Swap(i, j int)      { this[i], this[j] = this[j], this[i] }
-func (this nodesSet) Less(i, j int) bool { return this[i] < this[j] }
 
 type Ring struct {
 	sync.RWMutex
@@ -45,77 +36,77 @@ func New(opts ...Option) (*Ring, error) {
 	return &r, nil
 }
 
-func (this *Ring) getHash(key []byte) (uint64, error) {
-	this.hash.Reset()
-	_, err := this.hash.Write(key)
-	if err != nil {
-		return 0, err
-	}
+func (r *Ring) AddNode(node string) error {
+	r.Lock()
+	defer r.Unlock()
 
-	return this.hash.Sum64(), nil
-}
-
-func (this *Ring) AddNode(node string) error {
-	this.Lock()
-	defer this.Unlock()
-
-	for i := 0; uint(i) < this.virtualNodesPerNode; i++ {
+	for i := 0; uint(i) < r.virtualNodesPerNode; i++ {
 		virtualNodeKey := fmt.Sprintf("%s:%d", node, i)
-		virtualNodeHash, err := this.getHash([]byte(virtualNodeKey))
+		virtualNodeHash, err := r.getHash([]byte(virtualNodeKey))
 		if err != nil {
 			return fmt.Errorf("cannot add node: %v", err)
 		}
 
-		this.virtualNodes = append(this.virtualNodes, virtualNodeHash)
-		this.virtualNodesMapping[virtualNodeHash] = node
+		r.virtualNodes = append(r.virtualNodes, virtualNodeHash)
+		r.virtualNodesMapping[virtualNodeHash] = node
 	}
 
-	sort.Sort(this.virtualNodes)
+	sort.Sort(r.virtualNodes)
 
 	return nil
 }
 
-func (this *Ring) DeleteNode(node string) error {
-	this.Lock()
-	defer this.Unlock()
+func (r *Ring) DeleteNode(node string) error {
+	r.Lock()
+	defer r.Unlock()
 
-	for i := 0; uint(i) < this.virtualNodesPerNode; i++ {
+	for i := 0; uint(i) < r.virtualNodesPerNode; i++ {
 		virtualNodeKey := fmt.Sprintf("%s:%d", node, i)
-		virtualNodeHash, err := this.getHash([]byte(virtualNodeKey))
+		virtualNodeHash, err := r.getHash([]byte(virtualNodeKey))
 		if err != nil {
 			return fmt.Errorf("cannot add node: %v", err)
 		}
 
-		delete(this.virtualNodesMapping, virtualNodeHash)
+		delete(r.virtualNodesMapping, virtualNodeHash)
 	}
 
 	hashes := make(nodesSet, 0)
-	for virtualNodeHash, _ := range this.virtualNodesMapping {
+	for virtualNodeHash := range r.virtualNodesMapping {
 		hashes = append(hashes, virtualNodeHash)
 	}
-	this.virtualNodes = hashes
-	sort.Sort(this.virtualNodes)
+	r.virtualNodes = hashes
+	sort.Sort(r.virtualNodes)
 
 	return nil
 }
 
-func (this *Ring) GetNode(key string) (string, error) {
-	this.RLock()
-	defer this.RUnlock()
+func (r *Ring) GetNode(key string) (string, error) {
+	r.RLock()
+	defer r.RUnlock()
 
-	if len(this.virtualNodes) <= 0 {
+	if len(r.virtualNodes) <= 0 {
 		return "", ErrNoNodes
 	}
 
-	hash, err := this.getHash([]byte(key))
+	hash, err := r.getHash([]byte(key))
 	if err != nil {
 		return "", err
 	}
 
-	p := sort.Search(len(this.virtualNodes), func(i int) bool { return this.virtualNodes[i] >= hash })
-	if p == len(this.virtualNodes) {
-		return this.virtualNodesMapping[this.virtualNodes[0]], nil
+	p := sort.Search(len(r.virtualNodes), func(i int) bool { return r.virtualNodes[i] >= hash })
+	if p == len(r.virtualNodes) {
+		return r.virtualNodesMapping[r.virtualNodes[0]], nil
 	}
 
-	return this.virtualNodesMapping[this.virtualNodes[p]], nil
+	return r.virtualNodesMapping[r.virtualNodes[p]], nil
+}
+
+func (r *Ring) getHash(key []byte) (uint64, error) {
+	r.hash.Reset()
+	_, err := r.hash.Write(key)
+	if err != nil {
+		return 0, err
+	}
+
+	return r.hash.Sum64(), nil
 }
