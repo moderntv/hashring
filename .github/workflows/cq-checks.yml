@@ -20,6 +20,9 @@ jobs:
       - name: Test
         run: make test TEST_VERBOSE=1
 
+      - name: install tools
+        run: make tools-install
+
       - name: Lint
         run: make lint
 

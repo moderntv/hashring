@@ -16,5 +16,8 @@ lint:
 
 .PHONY: stats
 stats:
-	scc --exclude-dir 'vendor,node_modules,data,.git,docker/etcdkeeper,utils' --wide
-		./...
+	scc --exclude-dir 'vendor,node_modules,data,.git,docker/etcdkeeper,utils' --wide ./...
+
+.PHONY: tools-install
+tools-install:
+	cat tools.go | grep _ | awk -F'"' '{print $$2}' | xargs -tI % go install %
