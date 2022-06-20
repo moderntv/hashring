@@ -1,5 +1,10 @@
 package hashring
 
+type node struct {
+	key          string
+	virtualNodes nodesSet
+}
+
 type nodesSet []uint64
 
 func (ns nodesSet) Len() int           { return len(ns) }
