@@ -1,6 +1,6 @@
 module github.com/moderntv/hashring
 
-go 1.18
+go 1.24.3
 
 require (
 	github.com/cespare/xxhash/v2 v2.1.2
