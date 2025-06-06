@@ -61,4 +61,4 @@ output:
       path: golangci-lint.out
       colors: false
     html:
-      path: golanci-lint.out.html
+      path: golangci-lint.out.html
