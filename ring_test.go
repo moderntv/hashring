@@ -1,4 +1,4 @@
-package hashring
+package hashring //nolint: testpackage
 
 import (
 	"fmt"
@@ -12,14 +12,22 @@ import (
 
 const numTestKeys = 1_000_000
 
+type perturbType int
+
+const (
+	add perturbType = iota
+	remove
+)
+
 func TestHashring(t *testing.T) {
+	t.Parallel()
+
 	is := is.New(t)
 
 	tests := []struct {
 		name              string
-		replicationFactor int
+		replicationFactor uint
 		nodes             []string
-		// want struct{}
 	}{
 		{
 			name:              "simple",
@@ -34,20 +42,23 @@ func TestHashring(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
 			is := is.New(t)
 
-			ring, err := New(WithVirtualNodeReplicas(uint(tt.replicationFactor)), WithHashFunc(xxhash.New()))
+			ring, err := New(WithVirtualNodeReplicas(tt.replicationFactor), WithHashFunc(xxhash.New()))
 			is.NoErr(err)
 
 			for _, node := range tt.nodes {
-				ring.AddNode(node)
+				err := ring.AddNode(node)
+				is.NoErr(err)
 			}
 
 			is.Equal(len(ring.nodes), len(tt.nodes))
-			is.Equal(len(ring.virtualNodes), len(tt.nodes)*tt.replicationFactor)
+			is.Equal(uint(len(ring.virtualNodes)), uint(len(tt.nodes))*tt.replicationFactor)
 
 			for _, ringNode := range ring.nodes {
-				is.Equal(len(ringNode.virtualNodes), tt.replicationFactor)
+				is.Equal(uint(len(ringNode.virtualNodes)), tt.replicationFactor)
 			}
 
 			for _, node := range tt.nodes {
@@ -62,6 +73,8 @@ func TestHashring(t *testing.T) {
 }
 
 func TestBalance(t *testing.T) {
+	t.Parallel()
+
 	is := is.New(t)
 
 	ring, err := New(WithHashFunc(xxhash.New()))
@@ -75,7 +88,7 @@ func TestBalance(t *testing.T) {
 		mappings[node] = 0
 	}
 
-	for k := 0; k < numTestKeys; k++ {
+	for k := range numTestKeys {
 		node, err := ring.GetNode(fmt.Sprintf("key%d", k))
 		is.NoErr(err)
 
@@ -96,19 +109,56 @@ func TestBalance(t *testing.T) {
 	is.True(stddev < mean*0.1)
 }
 
-type perturbType int
+func TestConsistency(t *testing.T) {
+	t.Parallel()
 
-const (
-	add perturbType = iota
-	remove
-)
+	is := is.New(t)
 
-func checkValid(is *is.I, ring *Ring, changedNode string, typ perturbType, previousMapping map[string]string) (newMapping map[string]string) {
+	ring, err := New(WithHashFunc(xxhash.New()))
+	is.NoErr(err)
+
+	nodes := []string{"node1", "node2", "node3", "node4", "node5"}
+	for _, node := range nodes {
+		err := ring.AddNode(node)
+		is.NoErr(err)
+	}
+
+	mappings := map[string]string{}
+	for k := range numTestKeys {
+		key := fmt.Sprintf("key%d", k)
+		node, err := ring.GetNode(key)
+		is.NoErr(err)
+
+		mappings[key] = node
+	}
+
+	err = ring.DeleteNode("node2")
+	is.NoErr(err)
+	mappings = checkValid(is, ring, "node2", add, mappings)
+
+	err = ring.DeleteNode("node5")
+	is.NoErr(err)
+	mappings = checkValid(is, ring, "node5", add, mappings)
+
+	err = ring.AddNode("node2")
+	is.NoErr(err)
+
+	mappings = checkValid(is, ring, "node2", add, mappings)
+	_ = mappings
+}
+
+func checkValid(
+	is *is.I,
+	ring *Ring,
+	changedNode string,
+	typ perturbType,
+	previousMapping map[string]string,
+) (newMapping map[string]string) {
 	is.Helper()
 
 	newMapping = map[string]string{}
 
-	for k := 0; k < numTestKeys; k++ {
+	for k := range numTestKeys {
 		key := fmt.Sprintf("key%d", k)
 
 		node, err := ring.GetNode(key)
@@ -124,35 +174,4 @@ func checkValid(is *is.I, ring *Ring, changedNode string, typ perturbType, previ
 	}
 
 	return
-}
-
-func TestConsistency(t *testing.T) {
-	is := is.New(t)
-
-	ring, err := New(WithHashFunc(xxhash.New()))
-	is.NoErr(err)
-
-	nodes := []string{"node1", "node2", "node3", "node4", "node5"}
-	for _, node := range nodes {
-		err := ring.AddNode(node)
-		is.NoErr(err)
-	}
-
-	mappings := map[string]string{}
-	for k := 0; k < numTestKeys; k++ {
-		key := fmt.Sprintf("key%d", k)
-		node, err := ring.GetNode(key)
-		is.NoErr(err)
-
-		mappings[key] = node
-	}
-
-	ring.DeleteNode("node2")
-	mappings = checkValid(is, ring, "node2", add, mappings)
-
-	ring.DeleteNode("node5")
-	mappings = checkValid(is, ring, "node5", add, mappings)
-
-	ring.AddNode("node2")
-	mappings = checkValid(is, ring, "node2", add, mappings)
 }
