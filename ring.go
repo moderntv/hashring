@@ -52,11 +52,11 @@ func (r *Ring) AddNode(nodeKey string) error {
 		virtualNodes: []uint64{},
 	}
 
-	for i := 0; uint(i) < r.virtualNodesPerNode; i++ {
+	for i := range r.virtualNodesPerNode {
 		virtualNodeKey := fmt.Sprintf("%s:%d", nodeKey, i)
 		virtualNodeHash, err := r.getHash([]byte(virtualNodeKey))
 		if err != nil {
-			return fmt.Errorf("cannot add node: %v", err)
+			return fmt.Errorf("cannot add node: %w", err)
 		}
 
 		r.virtualNodes = append(r.virtualNodes, virtualNodeHash)
@@ -101,7 +101,7 @@ func (r *Ring) GetNode(key string) (string, error) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	if len(r.virtualNodes) <= 0 {
+	if len(r.virtualNodes) == 0 {
 		return "", ErrNoNodes
 	}
 

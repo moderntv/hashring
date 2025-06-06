@@ -5,6 +5,10 @@ import (
 	"hash/fnv"
 )
 
+const (
+	defaultVirtualNodesPerNode = 1000
+)
+
 type Option func(*options) error
 
 type options struct {
@@ -14,7 +18,7 @@ type options struct {
 
 func defaultOptions() options {
 	return options{
-		virtualNodesPerNode: 1000,
+		virtualNodesPerNode: defaultVirtualNodesPerNode,
 		hash:                fnv.New64a(),
 	}
 }
